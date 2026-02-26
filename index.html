@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guo 社会关系版图</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, 'PingFang SC', sans-serif; background:#0f172a; color:#e2e8f0; min-height:100vh; padding:20px; }
+h1 { text-align:center; font-size:1.6em; margin-bottom:4px; color:#38bdf8; }
+.subtitle { text-align:center; color:#64748b; font-size:0.85em; margin-bottom:16px; }
+
+.legend { display:flex; justify-content:center; gap:16px; margin-bottom:20px; flex-wrap:wrap; font-size:0.8em; color:#94a3b8; }
+.legend-item { display:flex; align-items:center; gap:5px; }
+.legend-item .dot { width:10px; height:10px; border-radius:50%; }
+.dot-core { background:#f59e0b; box-shadow:0 0 6px #f59e0b; }
+.dot-important { background:#22c55e; }
+.dot-normal { background:#64748b; }
+.legend-line { width:28px; height:0; border-top:3px solid #f59e0b; }
+.legend-line-thin { width:28px; height:0; border-top:1px dashed #475569; }
+
+svg { display:block; margin:0 auto; }
+
+/* Tooltip */
+.tooltip { position:absolute; background:#1e293b; border:1px solid #475569; border-radius:8px; padding:10px 14px; font-size:0.82em; color:#e2e8f0; pointer-events:none; opacity:0; transition:opacity 0.15s; max-width:260px; z-index:10; box-shadow:0 4px 16px rgba(0,0,0,0.5); }
+.tooltip .tt-name { font-weight:700; color:#38bdf8; margin-bottom:2px; }
+.tooltip .tt-co { color:#94a3b8; font-size:0.9em; }
+.tooltip .tt-note { margin-top:4px; color:#cbd5e1; line-height:1.4; }
+.tooltip .tt-collab { margin-top:4px; color:#f59e0b; font-weight:600; }
+
+.stats { text-align:center; margin-top:16px; color:#64748b; font-size:0.8em; }
+</style>
+</head>
+<body>
+<h1>🦞 Guo 社会关系版图</h1>
+<p class="subtitle">按地域 × 公司 · 连线粗细 = 合作深度 · 2026-02-26</p>
+
+<div class="legend">
+  <div class="legend-item"><span class="dot dot-core"></span> 核心</div>
+  <div class="legend-item"><span class="dot dot-important"></span> 重要</div>
+  <div class="legend-item"><span class="dot dot-normal"></span> 一般</div>
+  <div class="legend-item"><span class="legend-line"></span> 已合作</div>
+  <div class="legend-item"><span class="legend-line-thin"></span> 待激活</div>
+</div>
+
+<div id="chart" style="position:relative; width:100%; max-width:1100px; margin:0 auto;"></div>
+
+<div class="tooltip" id="tip"></div>
+
+<div class="stats" id="stats"></div>
+
+<script>
+const people = [
+  // {name, company, title, region, level, note, collaborated}
+  // 迪拜
+  {name:"Subhin", company:"资源中心", title:"安全工程师", region:"迪拜", level:"important", note:"已下达安全制度起草任务", collaborated:true, cat:"同事"},
+  {name:"李星彬", company:"TW迪拜代理", title:"代理商", region:"迪拜", level:"important", note:"台湾人，迪拜本地代理", collaborated:false, cat:"业务伙伴"},
+  // 台湾
+  {name:"余晓辉", company:"TW鑫旺", title:"负责人", region:"台湾", level:"important", note:"京龙系；访谈对象；3月可约", collaborated:false, cat:"业务伙伴"},
+  {name:"罗森（廖孟彦）", company:"河图文化", title:"创始人", region:"台湾", level:"normal", note:"2022年底在大陆被捕", collaborated:false, cat:"其他"},
+  {name:"迷男", company:"河图文化", title:"作家", region:"台湾", level:"normal", note:"《逍遥小散仙》作者", collaborated:false, cat:"其他"},
+  // 天津
+  {name:"刘志忠", company:"天津京龙", title:"", region:"天津", level:"important", note:"京龙系；可联系法人陈志敏", collaborated:false, cat:"业务伙伴"},
+  {name:"陈志敏", company:"天津京龙", title:"法人", region:"天津", level:"normal", note:"京龙系", collaborated:false, cat:"业务伙伴"},
+  // 长沙
+  {name:"中联重科", company:"中联重科", title:"董事会级别", region:"长沙", level:"important", note:"施工电梯产品线", collaborated:false, cat:"业务伙伴"},
+  // 湖北
+  {name:"柳工江汉高管", company:"柳工江汉", title:"高管", region:"湖北", level:"normal", note:"原江汉电梯", collaborated:false, cat:"业务伙伴"},
+  // 南京
+  {name:"朱家荣", company:"南京高立", title:"", region:"南京", level:"normal", note:"竞品厂商", collaborated:false, cat:"业务伙伴"},
+  {name:"张成", company:"南京高立", title:"", region:"南京", level:"normal", note:"竞品厂商", collaborated:false, cat:"业务伙伴"},
+  // 香港
+  {name:"郑威", company:"香港敏达", title:"", region:"香港", level:"important", note:"租赁端；曾考虑跳槽敏达新加坡", collaborated:false, cat:"业务伙伴"},
+  // 中国其他
+  {name:"王化龙", company:"京龙GJJ", title:"创始人", region:"中国", level:"core", note:"传记主角；行业传奇", collaborated:false, cat:"业务伙伴"},
+  {name:"郑飞雄", company:"XMT鑫美泰", title:"", region:"中国", level:"important", note:"京龙系；访谈对象", collaborated:false, cat:"业务伙伴"},
+  {name:"孙国来", company:"逸安", title:"", region:"中国", level:"normal", note:"京龙系", collaborated:false, cat:"业务伙伴"},
+  {name:"钟劲松", company:"凯博", title:"", region:"中国", level:"normal", note:"竞品厂商", collaborated:false, cat:"业务伙伴"},
+  {name:"夏红岩", company:"中建机械", title:"", region:"中国", level:"important", note:"访谈对象；代工/客户端关键人物", collaborated:false, cat:"业务伙伴"},
+  {name:"海林", company:"海林租赁", title:"老板", region:"中国", level:"normal", note:"租赁端", collaborated:false, cat:"业务伙伴"},
+  {name:"众程", company:"众程租赁", title:"老板", region:"中国", level:"normal", note:"租赁端", collaborated:false, cat:"业务伙伴"},
+  {name:"安达顺", company:"安达顺", title:"", region:"中国", level:"normal", note:"代工端；联系人待确认", collaborated:false, cat:"业务伙伴"},
+];
+
+// Group by region
+const regions = {};
+people.forEach(p => {
+  if (!regions[p.region]) regions[p.region] = [];
+  regions[p.region].push(p);
+});
+const regionNames = Object.keys(regions);
+const regionEmoji = {"迪拜":"🇦🇪","台湾":"🇹🇼","天津":"📍","长沙":"📍","湖北":"📍","南京":"📍","香港":"🇭🇰","中国":"🇨🇳"};
+
+// SVG dimensions
+const W = 1060, H = 780;
+const cx = W/2, cy = H/2;
+
+// Place regions in a circle around center
+const regionPos = {};
+const rRadius = 280;
+regionNames.forEach((r, i) => {
+  const angle = (i / regionNames.length) * Math.PI * 2 - Math.PI/2;
+  regionPos[r] = { x: cx + rRadius * Math.cos(angle), y: cy + rRadius * Math.sin(angle) };
+});
+
+// Place people around their region center
+const personPos = {};
+people.forEach((p, gi) => {
+  const rp = regionPos[p.region];
+  const siblings = regions[p.region];
+  const idx = siblings.indexOf(p);
+  const count = siblings.length;
+  const spread = 65;
+  if (count === 1) {
+    personPos[gi] = { x: rp.x, y: rp.y };
+  } else {
+    const angle = (idx / count) * Math.PI * 2 - Math.PI/2;
+    const r = Math.min(spread, 30 + count * 10);
+    personPos[gi] = { x: rp.x + r * Math.cos(angle), y: rp.y + r * Math.sin(angle) };
+  }
+});
+
+// Build SVG
+let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+svg += `<defs>
+  <filter id="glow"><feGaussianBlur stdDeviation="3" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <radialGradient id="centerGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#f59e0b" stop-opacity="0.15"/><stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/></radialGradient>
+</defs>`;
+
+// Center glow
+svg += `<circle cx="${cx}" cy="${cy}" r="60" fill="url(#centerGrad)"/>`;
+
+// Lines from center to each person
+people.forEach((p, i) => {
+  const pp = personPos[i];
+  if (p.collaborated) {
+    svg += `<line x1="${cx}" y1="${cy}" x2="${pp.x}" y2="${pp.y}" stroke="#f59e0b" stroke-width="2.5" stroke-opacity="0.7"/>`;
+  } else {
+    svg += `<line x1="${cx}" y1="${cy}" x2="${pp.x}" y2="${pp.y}" stroke="#334155" stroke-width="0.8" stroke-dasharray="4,4"/>`;
+  }
+});
+
+// Region labels
+regionNames.forEach(r => {
+  const rp = regionPos[r];
+  const emoji = regionEmoji[r] || "📍";
+  // Background circle for region
+  const count = regions[r].length;
+  const bgR = Math.max(80, 50 + count * 18);
+  svg += `<circle cx="${rp.x}" cy="${rp.y}" r="${bgR}" fill="#1e293b" fill-opacity="0.4" stroke="#334155" stroke-width="0.5"/>`;
+  svg += `<text x="${rp.x}" y="${rp.y - bgR + 14}" text-anchor="middle" fill="#38bdf8" font-size="13" font-weight="600">${emoji} ${r}</text>`;
+});
+
+// Person nodes
+const levelColor = { core:"#f59e0b", important:"#22c55e", normal:"#64748b" };
+const levelR = { core:10, important:7, normal:5 };
+
+people.forEach((p, i) => {
+  const pp = personPos[i];
+  const color = levelColor[p.level];
+  const r = levelR[p.level];
+  const glow = p.collaborated ? ' filter="url(#glow)"' : '';
+  const ring = p.collaborated ? `<circle cx="${pp.x}" cy="${pp.y}" r="${r+3}" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5"/>` : '';
+  svg += ring;
+  svg += `<circle cx="${pp.x}" cy="${pp.y}" r="${r}" fill="${color}" data-idx="${i}" class="pnode" style="cursor:pointer"${glow}/>`;
+  // Name label
+  svg += `<text x="${pp.x}" y="${pp.y + r + 13}" text-anchor="middle" fill="#cbd5e1" font-size="11" style="pointer-events:none">${p.name.length > 6 ? p.name.slice(0,6)+'…' : p.name}</text>`;
+});
+
+// Center node
+svg += `<circle cx="${cx}" cy="${cy}" r="28" fill="#f59e0b" fill-opacity="0.15" stroke="#f59e0b" stroke-width="2"/>`;
+svg += `<text x="${cx}" y="${cy+5}" text-anchor="middle" fill="#f59e0b" font-size="15" font-weight="700">Guo</text>`;
+
+svg += `</svg>`;
+
+document.getElementById('chart').innerHTML = svg;
+
+// Stats
+const collabCount = people.filter(p => p.collaborated).length;
+document.getElementById('stats').innerHTML = `共 ${people.length} 人 · ${regionNames.length} 个地域 · 已合作 ${collabCount} 人 · 待激活 ${people.length - collabCount} 人<br><em style="color:#475569">💡 发生合作后连线自动加粗变亮（金色），亲密度同步升级</em>`;
+
+// Tooltip
+const tip = document.getElementById('tip');
+document.querySelectorAll('.pnode').forEach(el => {
+  el.addEventListener('mouseenter', e => {
+    const i = +el.getAttribute('data-idx');
+    const p = people[i];
+    tip.innerHTML = `<div class="tt-name">${p.name}</div>
+      <div class="tt-co">${p.company}${p.title ? ' · '+p.title : ''}</div>
+      <div class="tt-note">${p.note}</div>
+      ${p.collaborated ? '<div class="tt-collab">✦ 已合作</div>' : '<div style="color:#64748b;margin-top:4px">○ 待激活</div>'}`;
+    tip.style.opacity = 1;
+  });
+  el.addEventListener('mousemove', e => {
+    tip.style.left = (e.pageX + 12) + 'px';
+    tip.style.top = (e.pageY - 10) + 'px';
+  });
+  el.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+});
+</script>
+</body>
+</html>
